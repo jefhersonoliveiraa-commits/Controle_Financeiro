@@ -1,0 +1,26 @@
+{
+  "name": "controle-financeiro-pessoal",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "build:contracts": "npm run build --workspace @financeiro/contracts",
+    "dev": "npm run build:contracts && concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace @financeiro/web",
+    "dev:api": "npm run dev --workspace @financeiro/api",
+    "build": "npm run build --workspace @financeiro/contracts && npm run build --workspace @financeiro/api && npm run build --workspace @financeiro/web",
+    "lint": "npm run check:encoding && npm run lint --workspace @financeiro/contracts && npm run lint --workspace @financeiro/api && npm run lint --workspace @financeiro/web",
+    "test": "npm run test --workspace @financeiro/api",
+    "prisma:generate": "npm run prisma:generate --workspace @financeiro/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @financeiro/api --",
+    "prisma:seed": "npm run prisma:seed --workspace @financeiro/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "typescript": "^5.7.3"
+  }
+}

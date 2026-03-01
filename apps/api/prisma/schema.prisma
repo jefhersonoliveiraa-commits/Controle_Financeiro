@@ -1,0 +1,461 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  BANK_ACCOUNT
+  CASH
+  CREDIT_CARD
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+  BOTH
+}
+
+enum PartyType {
+  RECEIVER
+  PAYER
+  BOTH
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  RECEIVED
+  CANCELED
+}
+
+enum TransactionBehavior {
+  FIXED
+  VARIABLE
+  PROVISION
+}
+
+enum RecurrenceFrequency {
+  MONTHLY
+  BIWEEKLY
+  WEEKLY
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+enum TransactionSource {
+  MANUAL
+  RECURRENCE
+  IMPORT
+}
+
+enum CardTransactionOwner {
+  SELF
+  THIRD_PARTY
+}
+
+enum CardInvoiceStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+}
+
+enum CardInvoicePaymentOrigin {
+  MANUAL
+  MIGRATION
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum BudgetAlertLevel {
+  WARNING
+  CRITICAL
+  EXCEEDED
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  name            String
+  passwordHash    String
+  role            UserRole          @default(USER)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  accounts        Account[]
+  categories      Category[]
+  parties         Party[]
+  transactions    Transaction[]
+  recurrences     Recurrence[]
+  installmentPlan InstallmentPlan[]
+  goals           Goal[]
+  refreshTokens   RefreshToken[]
+  importBatches   ImportBatch[]
+  categoryBudgets CategoryBudget[]
+  budgetAlerts    BudgetAlert[]
+  transactionSplits TransactionCardSplit[]
+  cardInvoices CardInvoice[]
+  cardInvoicePayments CardInvoicePayment[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                  String        @id @default(uuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  type                AccountType
+  initialBalance      Decimal
+  initialBalanceDate  DateTime
+  creditLimit         Decimal?
+  statementClosingDay Int?
+  statementDueDay     Int?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  transactions        Transaction[] @relation("TransactionAccount")
+  transferCounterpartFor Transaction[] @relation("TransactionTransferAccount")
+  goals               Goal[]
+  recurrences         Recurrence[]
+  installmentPlans    InstallmentPlan[]
+  cardInvoices        CardInvoice[]
+  cardInvoicePaymentsFrom CardInvoicePayment[] @relation("CardInvoicePaymentFromAccount")
+
+  @@index([userId])
+}
+
+model Category {
+  id           String            @id @default(uuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         CategoryType
+  color        String
+  icon         String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  transactions Transaction[]
+  recurrences  Recurrence[]
+  goals        Goal[]
+  installmentPlans InstallmentPlan[]
+  categoryBudgets CategoryBudget[]
+
+  @@index([userId])
+  @@unique([userId, name])
+}
+
+model Party {
+  id           String            @id @default(uuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         PartyType
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  transactions Transaction[]
+  transactionSplits TransactionCardSplit[]
+
+  @@index([userId])
+  @@unique([userId, name])
+}
+
+model InstallmentPlan {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              TransactionType
+  description       String
+  totalAmount       Decimal?
+  installmentAmount Decimal?
+  installments      Int
+  frequency         RecurrenceFrequency
+  isVariable        Boolean             @default(false)
+  startDate         DateTime
+  accountId         String
+  account           Account             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  categoryId        String
+  category          Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  transactions      Transaction[]
+
+  @@index([userId])
+}
+
+model Recurrence {
+  id                  String              @id @default(uuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                TransactionType
+  description         String
+  defaultAmount       Decimal
+  behavior            TransactionBehavior
+  dayOfMonth          Int
+  frequency           RecurrenceFrequency @default(MONTHLY)
+  accountId           String
+  account             Account             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  categoryId          String
+  category            Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  startsAt            DateTime
+  endsAt              DateTime?
+  autoGenerateMonthly Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  transactions        Transaction[]
+
+  @@index([userId, startsAt, endsAt])
+}
+
+model Goal {
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  targetAmount     Decimal
+  initialAccumulatedAmount Decimal @default(0)
+  accumulatedAmount Decimal      @default(0)
+  dueDate          DateTime
+  accountId        String
+  account          Account       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  categoryId       String
+  category         Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  saveDayOfMonth   Int
+  status           GoalStatus    @default(ACTIVE)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  schedules        GoalSchedule[]
+  transactions     Transaction[]
+
+  @@index([userId, dueDate])
+}
+
+model GoalSchedule {
+  id             String   @id @default(uuid())
+  goalId         String
+  goal           Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  monthReference DateTime
+  plannedAmount  Decimal
+  actualAmount   Decimal?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([goalId, monthReference])
+}
+
+model ImportBatch {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName    String
+  checksum    String?
+  totalRows   Int
+  importedRows Int
+  skippedRows Int
+  createdAt   DateTime      @default(now())
+  transactions Transaction[]
+
+  @@index([userId, createdAt])
+}
+
+model CategoryBudget {
+  id                String      @id @default(uuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId        String
+  category          Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  monthReference    DateTime
+  limitAmount       Decimal
+  warningThreshold  Int         @default(70)
+  criticalThreshold Int         @default(90)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  alerts            BudgetAlert[]
+
+  @@unique([userId, categoryId, monthReference])
+  @@index([userId, monthReference])
+}
+
+model BudgetAlert {
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetId         String
+  budget           CategoryBudget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  monthReference   DateTime
+  level            BudgetAlertLevel
+  thresholdPercent Int
+  spentAmount      Decimal
+  projectedAmount  Decimal
+  limitAmount      Decimal
+  message          String
+  dismissedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([budgetId, monthReference, level])
+  @@index([userId, monthReference, dismissedAt])
+}
+
+model Transaction {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              TransactionType
+  description       String
+  categoryId        String
+  category          Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  accountId         String
+  account           Account             @relation("TransactionAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  transferAccountId String?
+  transferAccount   Account?            @relation("TransactionTransferAccount", fields: [transferAccountId], references: [id], onDelete: SetNull)
+  transferGroupId   String?
+  cardOwnership     CardTransactionOwner @default(SELF)
+  thirdPartyReceivedAt DateTime?
+  partyId           String?
+  party             Party?              @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  dueDate           DateTime
+  amountPlanned     Decimal
+  amountActual      Decimal?
+  status            TransactionStatus   @default(PENDING)
+  behavior          TransactionBehavior @default(FIXED)
+  note              String?
+  costCenter        String?
+  paymentMethod     String?
+  effectiveAt       DateTime?
+  installmentPlanId String?
+  installmentPlan   InstallmentPlan?    @relation(fields: [installmentPlanId], references: [id], onDelete: SetNull)
+  installmentNumber Int?
+  installmentTotal  Int?
+  recurrenceId      String?
+  recurrence        Recurrence?         @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  goalId            String?
+  goal              Goal?               @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  source            TransactionSource   @default(MANUAL)
+  importBatchId     String?
+  importBatch       ImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  cardInvoiceId     String?
+  cardInvoice       CardInvoice?        @relation(fields: [cardInvoiceId], references: [id], onDelete: SetNull)
+  cardSettledAmount Decimal             @default(0)
+  externalHash      String?
+  reconciledAt      DateTime?
+  isProjected       Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  histories         TransactionHistory[]
+  cardSplits        TransactionCardSplit[]
+  cardInvoiceAllocations CardInvoicePaymentAllocation[]
+
+  @@index([userId, dueDate])
+  @@index([userId, accountId, dueDate])
+  @@index([userId, transferGroupId])
+  @@index([status])
+  @@index([cardOwnership])
+  @@unique([userId, externalHash])
+}
+
+model TransactionCardSplit {
+  id            String               @id @default(uuid())
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String
+  transaction   Transaction          @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  ownerType     CardTransactionOwner
+  amount        Decimal
+  partyId       String?
+  party         Party?               @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  receivedAt    DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([transactionId, ownerType])
+  @@index([userId, partyId])
+}
+
+model CardInvoice {
+  id            String            @id @default(uuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId     String
+  account       Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  reference     String
+  cycleStart    DateTime
+  cycleEnd      DateTime
+  dueDate       DateTime
+  totalAmount   Decimal           @default(0)
+  paidAmount    Decimal           @default(0)
+  status        CardInvoiceStatus @default(OPEN)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  transactions  Transaction[]
+  payments      CardInvoicePayment[]
+
+  @@unique([userId, accountId, reference])
+  @@index([userId, dueDate])
+}
+
+model CardInvoicePayment {
+  id            String                    @id @default(uuid())
+  userId        String
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoiceId     String
+  invoice       CardInvoice               @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  fromAccountId String?
+  fromAccount   Account?                  @relation("CardInvoicePaymentFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  transferGroupId String?
+  paidAt        DateTime
+  amount        Decimal
+  note          String?
+  origin        CardInvoicePaymentOrigin  @default(MANUAL)
+  createdAt     DateTime                  @default(now())
+  allocations   CardInvoicePaymentAllocation[]
+
+  @@index([userId, paidAt])
+  @@index([invoiceId, paidAt])
+}
+
+model CardInvoicePaymentAllocation {
+  id            String            @id @default(uuid())
+  paymentId     String
+  payment       CardInvoicePayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  transactionId String
+  transaction   Transaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  amountAllocated Decimal
+  createdAt     DateTime          @default(now())
+
+  @@index([paymentId])
+  @@index([transactionId])
+}
+
+model TransactionHistory {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  field         String
+  oldValue      String?
+  newValue      String?
+  changedAt     DateTime    @default(now())
+
+  @@index([transactionId, changedAt])
+}

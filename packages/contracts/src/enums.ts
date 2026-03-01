@@ -1,0 +1,31 @@
+import { z } from "zod";
+
+export const accountTypeSchema = z.enum(["BANK_ACCOUNT", "CASH", "CREDIT_CARD"]);
+export const categoryTypeSchema = z.enum(["INCOME", "EXPENSE", "BOTH"]);
+export const partyTypeSchema = z.enum(["RECEIVER", "PAYER", "BOTH"]);
+export const transactionTypeSchema = z.enum(["INCOME", "EXPENSE"]);
+export const transactionStatusSchema = z.enum(["PENDING", "PAID", "RECEIVED", "CANCELED"]);
+export const transactionBehaviorSchema = z.enum(["FIXED", "VARIABLE", "PROVISION"]);
+export const transactionSourceSchema = z.enum(["MANUAL", "RECURRENCE", "IMPORT"]);
+export const cardTransactionOwnerSchema = z.enum(["SELF", "THIRD_PARTY"]);
+export const cardInvoiceStatusSchema = z.enum(["OPEN", "PARTIALLY_PAID", "PAID"]);
+export const cardInvoicePaymentOriginSchema = z.enum(["MANUAL", "MIGRATION"]);
+export const recurrenceFrequencySchema = z.enum(["MONTHLY", "BIWEEKLY", "WEEKLY"]);
+export const goalStatusSchema = z.enum(["ACTIVE", "COMPLETED", "CANCELED"]);
+export const importInputFormatSchema = z.enum(["CSV", "OFX"]);
+export const budgetAlertLevelSchema = z.enum(["WARNING", "CRITICAL", "EXCEEDED"]);
+
+export type AccountType = z.infer<typeof accountTypeSchema>;
+export type CategoryType = z.infer<typeof categoryTypeSchema>;
+export type PartyType = z.infer<typeof partyTypeSchema>;
+export type TransactionType = z.infer<typeof transactionTypeSchema>;
+export type TransactionStatus = z.infer<typeof transactionStatusSchema>;
+export type TransactionBehavior = z.infer<typeof transactionBehaviorSchema>;
+export type TransactionSource = z.infer<typeof transactionSourceSchema>;
+export type CardTransactionOwner = z.infer<typeof cardTransactionOwnerSchema>;
+export type CardInvoiceStatus = z.infer<typeof cardInvoiceStatusSchema>;
+export type CardInvoicePaymentOrigin = z.infer<typeof cardInvoicePaymentOriginSchema>;
+export type RecurrenceFrequency = z.infer<typeof recurrenceFrequencySchema>;
+export type GoalStatus = z.infer<typeof goalStatusSchema>;
+export type ImportInputFormat = z.infer<typeof importInputFormatSchema>;
+export type BudgetAlertLevel = z.infer<typeof budgetAlertLevelSchema>;
