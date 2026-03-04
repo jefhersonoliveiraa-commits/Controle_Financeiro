@@ -7,6 +7,7 @@ function isLoopbackHost(hostname: string) {
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }
 
+/** Returns the base URL for the NestJS backend API (non-auth routes). */
 function resolveApiUrl() {
   const normalizedEnvUrl = API_URL_FROM_ENV.replace(/\/+$/, "");
 
@@ -33,6 +34,32 @@ function resolveApiUrl() {
   return "http://localhost:3333";
 }
 
+/**
+ * Returns the base URL for Next.js local API routes (auth).
+ * In the browser, uses the current origin. On the server, falls back to localhost:3000.
+ */
+function resolveLocalApiUrl() {
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  return "http://localhost:3000";
+}
+
+/** Auth paths are served by Next.js API routes, everything else by the NestJS backend. */
+const AUTH_PATH_PREFIX = "/auth/";
+
+function isAuthPath(path: string) {
+  return path === "/auth/login" || path === "/auth/register" || path === "/auth/refresh" || path === "/auth/profile";
+}
+
+/** Resolves the full URL for a given API path. Auth routes go to Next.js, others to NestJS. */
+function resolveFullUrl(path: string) {
+  if (isAuthPath(path)) {
+    return `${resolveLocalApiUrl()}/api${path}`;
+  }
+  return `${resolveApiUrl()}${path}`;
+}
+
 type RequestOptions = RequestInit & {
   skipAuthRetry?: boolean;
 };
@@ -43,7 +70,7 @@ async function refreshAccessToken(): Promise<string | null> {
     return null;
   }
 
-  const response = await fetch(`${resolveApiUrl()}/auth/refresh`, {
+  const response = await fetch(`${resolveLocalApiUrl()}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken })
@@ -69,7 +96,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(`${resolveApiUrl()}${path}`, {
+  const response = await fetch(resolveFullUrl(path), {
     ...options,
     headers
   });
@@ -106,7 +133,7 @@ export async function apiDownload(path: string, options: RequestOptions = {}): P
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(`${resolveApiUrl()}${path}`, {
+  const response = await fetch(resolveFullUrl(path), {
     ...options,
     headers
   });
